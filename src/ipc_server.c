@@ -119,10 +119,84 @@ void run_ipc_server(int server_fd, ring_buffer_t *rb)
             break;
         case CMD_ADD_CLIP:
             printf("[clipd] :: [INFO] :: CMD_ADD_CLIP received. (Payload length: %u)\n", header.payload_len);
-            // We will add the payload reading logic here later
+
+            if (header.payload_len == 0 || header.payload_len > MAX_PAYLOAD_SIZE)
+            {
+                fprintf(stderr, "[clipd] :: [ERROR] :: invalid payload.\n");
+                break;
+            }
+
+            // temp space to receive data
+            char *temp = malloc(header.payload_len);
+            if (!temp)
+            {
+                fprintf(stderr, "[clipd] :: [ERROR] :: out of memory\n");
+                break;
+            }
+
+            // revceive the data in the buffer
+            ssize_t bytes_received = recv(client_fd, temp, header.payload_len, 0);
+            if (bytes_received != (ssize_t)header.payload_len)
+            {
+                fprintf(stderr, "[clipd] :: [ERROR] :: socket read failed\n");
+                free(temp);
+                break;
+            }
+
+            // push to the queue
+            uint32_t assigned_id = rb_push(rb, temp, header.payload_len);
+            free(temp);
+            printf("[clipd] :: [INFO] :: saved clip as ID %u.\n", assigned_id);
+
+            ipc_header_t resp = {
+                .uid = CLIPD_UID,
+                .command = STATUS_OK,
+                .payload_len = 0,
+                .clip_id = assigned_id};
+
+            send(client_fd, &resp, sizeof(resp), 0); // send OK status
             break;
         case CMD_GET_CLIP:
             printf("[clipd] :: [INFO] :: CMD_GET_CLIP received for ID %u.\n", header.clip_id);
+
+            // query the queue
+            const clip_entry_t *entry = rb_get(rb, header.clip_id);
+
+            if (!entry || !entry->data)
+            {
+                fprintf(stderr, "[clipd] :: [WARN] :: Clip ID %u not found or expired.\n", header.clip_id);
+
+                // response for error
+                ipc_header_t err_resp = {
+                    .uid = CLIPD_UID,
+                    .command = STATUS_ERR,
+                    .payload_len = 0,
+                    .clip_id = header.clip_id};
+                send(client_fd, &err_resp, sizeof(err_resp), 0);
+                break;
+            }
+
+            // response for successful query
+            ipc_header_t ok_resp = {
+                .uid = CLIPD_UID,
+                .command = STATUS_OK,
+                .payload_len = entry->size,
+                .clip_id = entry->id};
+
+            // send header
+            if (send(client_fd, &ok_resp, sizeof(ok_resp), 0) == -1)
+            {
+                perror("[clipd] :: [ERROR] :: Failed sending GET header response");
+                break;
+            }
+
+            // send payload directly from the queue
+            if (send(client_fd, entry->data, entry->size, 0) == -1)
+            {
+                perror("[clipd] :: [ERROR] :: Failed streaming raw clip payload");
+                break;
+            }
+            printf("[clipd] :: [INFO] :: sent %zu bytes for ID %u to client.\n", entry->size, entry->id);
             break;
         default:
             fprintf(stderr, "[clipd] :: [ERROR] :: Unknown command received: %u\n", header.command);

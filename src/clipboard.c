@@ -91,7 +91,40 @@ int main(int argc, char *argv[])
         {
             perror("[clipboard] :: [ERROR] :: send error");
         }
-        printf("[clipboard] :: [INFO] :: Sent CMD_GET_CLIP for ID %u\n", header.clip_id);
+
+        // read response header from clip daemon (clipd)
+        ipc_header_t resp_header;
+        if (recv(fd, &resp_header, sizeof(resp_header), 0) != sizeof(resp_header))
+        {
+            fprintf(stderr, "[clipboard] :: [ERROR] :: error reading response header from daemon.\n");
+            close(fd);
+            return EXIT_FAILURE;
+        }
+
+        if (resp_header.command == STATUS_ERR)
+        {
+            fprintf(stderr, "[clipboard] :: [ERROR] :: clip ID %u not found in history.\n", header.clip_id);
+        }
+        else if (resp_header.command == STATUS_OK && resp_header.payload_len > 0)
+        {
+            // temp buffer
+            char *payload = malloc(resp_header.payload_len + 1);
+            if (!payload)
+            {
+                fprintf(stderr, "[clipboard] :: [ERROR] :: out of memory\n");
+                close(fd);
+                return EXIT_FAILURE;
+            }
+
+            // read payload
+            ssize_t received = recv(fd, payload, resp_header.payload_len, 0);
+            if (received > 0)
+            {
+                payload[received] = '\0'; // add Null terminator at the end
+                printf("%s\n", payload);
+            }
+            free(payload);
+        }
     }
     else
     {
