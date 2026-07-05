@@ -1,8 +1,8 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -pedantic -std=c11 -Iinclude -g
-LDFLAGS =
+LDFLAGS = -lwayland-client
 
-SRCS_DAEMON = src/clipd.c src/ipc_server.c src/ring_buffer.c
+SRCS_DAEMON = src/clipd.c src/ipc_server.c src/ring_buffer.c src/display.c src/wayland_backend.c
 SRCS_CLIENT = src/clipboard.c
 
 OBJS_DAEMON = $(SRCS_DAEMON:.c=.o)
