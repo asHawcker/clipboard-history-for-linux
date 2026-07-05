@@ -4,11 +4,13 @@
 #include <unistd.h>
 #include <poll.h>
 #include <wayland-client.h>
+#include <X11/Xlib.h>
 
 #include "ring_buffer.h"
 #include "ipc_server.h"
 #include "display.h"
 
+extern Display *x11_get_display(void);
 extern struct wl_display *wayland_get_display(void);
 
 int main()
@@ -33,6 +35,8 @@ int main()
 
     while (1)
     {
+        int timeout = -1;
+
         // flush out bound messages before sleeping
         if (session == SESSION_WAYLAND)
         {
@@ -47,8 +51,17 @@ int main()
             }
         }
 
+        if (current_active_session == SESSION_X11)
+        {
+            Display *dpy = x11_get_display();
+            if (dpy && XPending(dpy))
+            {
+                timeout = 0;
+            }
+        }
+
         // sleep until a wake signal is recieved from the kernel
-        int poll_ret = poll(fds, 2, -1);
+        int poll_ret = poll(fds, 2, timeout);
         if (poll_ret < 0)
         {
             perror("[clipd] :: [ERROR] :: poll crash");
@@ -76,13 +89,17 @@ int main()
         }
 
         // handle graphical selection updates
-        if (display_fd != -1 && (fds[1].revents & POLLIN))
+        if (display_fd != -1 && ((fds[1].revents & POLLIN) || (timeout == 0)))
         {
-            if (session == SESSION_WAYLAND)
+            // if (session == SESSION_WAYLAND)
+            // {
+            //     extern void x11_handle_event(ring_buffer_t * rb);
+
+            if (current_active_session == SESSION_X11)
             {
-                printf("[clipd] :: [DEBUG] :: Wayland Display Protocol message received!\n");
-                // TODO here... still testing
+                x11_handle_event(&rb);
             }
+            // }
         }
     }
 

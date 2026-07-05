@@ -3,6 +3,8 @@
 #include <string.h>
 #include "display.h"
 
+session_type_t current_active_session = SESSION_UNKNOWN;
+
 session_type_t detect_session_type(void)
 {
     const char *session = getenv("XDG_SESSION_TYPE");
@@ -29,13 +31,18 @@ int init_display_listener(session_type_t session)
 {
     if (session == SESSION_WAYLAND)
     {
-        printf("[display] :: [INFO] :: initializing wayland backend...\n");
-        return wayland_init();
+        int fd = wayland_init();
+        if (fd != -1)
+            return fd;
+
+        printf("[display] :: [WARN] :: native Wayland failed. Attempting XWayland bridge...\n");
+        current_active_session = SESSION_X11;
+        return x11_init();
     }
     else if (session == SESSION_X11)
     {
         fprintf(stderr, "[display] :: [ERROR] :: X11 backend\n");
-        return -1;
+        return x11_init();
     }
 
     fprintf(stderr, "[display] :: [ERROR] :: unknown display session.\n");

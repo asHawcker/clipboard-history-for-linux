@@ -1,3 +1,6 @@
 *.o
 clipboard
 clipd
+
+src/wlr-data-control-unstable-v1-client-protocol.h
+src/wlr-data-control-unstable-v1-protocol.c
