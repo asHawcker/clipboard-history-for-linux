@@ -1,40 +1,121 @@
-CC = gcc
-CFLAGS = -Wall -Wextra -pedantic -std=c11 -Iinclude -Isrc -g
-LDFLAGS = -lwayland-client -lX11 -lXfixes
+# =========================================================================
+# Clip History Engine - Production Distribution Makefile
+# =========================================================================
 
+# Compiler & Flags
+CC      ?= gcc
+CFLAGS  ?= -Wall -Wextra -pedantic -std=c11 -Iinclude -Isrc -O2 -g
+LDFLAGS ?= -lwayland-client -lX11 -lXfixes
+
+# Directories
+SRC_DIR = src
+INC_DIR = include
+OBJ_DIR = obj
+
+# Binaries & Scripts
+DAEMON  = clipd
+CLIENT  = clipboard
+SCRIPT  = cb-popup.sh
+
+# Wayland Protocols
 PROTO_XML = protocols/wlr-data-control-unstable-v1.xml
-PROTO_HDR = src/wlr-data-control-unstable-v1-client-protocol.h
-PROTO_SRC = src/wlr-data-control-unstable-v1-protocol.c
-PROTO_OBJ = $(PROTO_SRC:.c=.o)
+PROTO_HDR = $(SRC_DIR)/wlr-data-control-unstable-v1-client-protocol.h
+PROTO_SRC = $(SRC_DIR)/wlr-data-control-unstable-v1-protocol.c
+PROTO_OBJ = $(OBJ_DIR)/wlr-data-control-unstable-v1-protocol.o
 
-SRCS_DAEMON = src/clipd.c src/ipc_server.c src/ring_buffer.c src/display.c src/wayland_backend.c src/x11_backend.c src/uinput_backend.c
-SRCS_CLIENT = src/clipboard.c
+# Source Files
+SRCS_DAEMON = $(SRC_DIR)/clipd.c $(SRC_DIR)/ipc_server.c $(SRC_DIR)/ring_buffer.c \
+              $(SRC_DIR)/display.c $(SRC_DIR)/wayland_backend.c $(SRC_DIR)/x11_backend.c \
+              $(SRC_DIR)/uinput_backend.c
+SRCS_CLIENT = $(SRC_DIR)/clipboard.c
 
-OBJS_DAEMON = $(SRCS_DAEMON:.c=.o) $(PROTO_OBJ)
-OBJS_CLIENT = $(SRCS_CLIENT:.c=.o)
+# Object Files (Mapped to obj/ directory)
+OBJS_DAEMON = $(SRCS_DAEMON:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o) $(PROTO_OBJ)
+OBJS_CLIENT = $(SRCS_CLIENT:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
-all: clipd clipboard
+# Standard Installation Paths
+PREFIX           ?= /usr/local
+BINDIR           ?= $(PREFIX)/bin
+SYSTEMD_USER_DIR ?= $(HOME)/.config/systemd/user
 
-# generate the wayland protocol's C code from xml
+.PHONY: all clean install uninstall
+
+all: $(DAEMON) $(CLIENT)
+
+# =========================================================================
+# Wayland Protocol Generation
+# =========================================================================
 $(PROTO_SRC): $(PROTO_XML)
 	wayland-scanner private-code $< $@
 
-# generate the wayland protocol header from xml
 $(PROTO_HDR): $(PROTO_XML)
 	wayland-scanner client-header $< $@
 
-$(SRCS_DAEMON:.c=.o): $(PROTO_HDR)
+# Ensure headers exist before compiling any daemon source files
+$(OBJS_DAEMON): | $(PROTO_HDR)
 
-clipd: $(OBJS_DAEMON)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+# =========================================================================
+# Build Rules
+# =========================================================================
+$(OBJ_DIR):
+	@mkdir -p $(OBJ_DIR)
 
-clipboard: $(OBJS_CLIENT)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-%.o: %.c
+# Compile C files into Object files inside obj/
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clean:
-	rm -f src/*.o clipd clipboard $(PROTO_HDR) $(PROTO_SRC)	
+# Link Daemon Binary
+$(DAEMON): $(OBJS_DAEMON)
+	$(CC) $^ -o $@ $(LDFLAGS)
 
-.PHONY: all clean
+# Link Client Binary
+$(CLIENT): $(OBJS_CLIENT)
+	$(CC) $^ -o $@ $(LDFLAGS)
+
+# =========================================================================
+# Installation & Packaging Hooks
+# =========================================================================
+install: all
+	@echo ":: Installing core binaries to $(DESTDIR)$(BINDIR)..."
+	install -d $(DESTDIR)$(BINDIR)
+	install -m 0755 $(DAEMON) $(DESTDIR)$(BINDIR)/$(DAEMON)
+	install -m 0755 $(CLIENT) $(DESTDIR)$(BINDIR)/$(CLIENT)
+
+	@echo ":: Installing GUI popup script as $(DESTDIR)$(BINDIR)/cb-popup..."
+	if [ -f $(SCRIPT) ]; then \
+		install -m 0755 $(SCRIPT) $(DESTDIR)$(BINDIR)/cb-popup; \
+	fi
+
+	@echo ":: Installing systemd user service..."
+	install -d $(DESTDIR)$(SYSTEMD_USER_DIR)
+	if [ -f clipd.service ]; then \
+		install -m 0644 clipd.service $(DESTDIR)$(SYSTEMD_USER_DIR)/clipd.service; \
+	fi
+
+	@echo ""
+	@echo "-------------------------------------------------------------------"
+	@echo " SUCCESS: Installation complete!"
+	@echo "-------------------------------------------------------------------"
+	@echo " 1. Reload systemd units: systemctl --user daemon-reload"
+	@echo " 2. Enable & start service: systemctl --user enable --now clipd.service"
+	@echo " 3. Bind your shortcut to: cb-popup"
+	@echo "-------------------------------------------------------------------"
+
+uninstall:
+	@echo ":: Stopping systemd service (if active)..."
+	-systemctl --user stop clipd.service 2>/dev/null || true
+	-systemctl --user disable clipd.service 2>/dev/null || true
+
+	@echo ":: Removing binaries from $(DESTDIR)$(BINDIR)..."
+	rm -f $(DESTDIR)$(BINDIR)/$(DAEMON)
+	rm -f $(DESTDIR)$(BINDIR)/$(CLIENT)
+	rm -f $(DESTDIR)$(BINDIR)/cb-popup
+
+	@echo ":: Removing systemd user service..."
+	rm -f $(DESTDIR)$(SYSTEMD_USER_DIR)/clipd.service
+	-systemctl --user daemon-reload 2>/dev/null || true
+
+	@echo ":: Clean uninstallation complete."
+
+clean:
+	rm -rf $(OBJ_DIR) $(DAEMON) $(CLIENT) $(PROTO_HDR) $(PROTO_SRC)
