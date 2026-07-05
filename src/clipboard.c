@@ -126,6 +126,34 @@ int main(int argc, char *argv[])
             free(payload);
         }
     }
+    else if (strcmp(argv[1], "paste") == 0 && argc >= 3)
+    {
+        header.command = CMD_PASTE_CLIP;
+        header.clip_id = (uint32_t)atoi(argv[2]);
+
+        if (send(fd, &header, sizeof(header), 0) == -1)
+        {
+            perror("[clipboard] :: [ERROR] :: Failed sending paste command");
+        }
+        else
+        {
+            // wait for confirmation from daemon before exiting
+            ipc_header_t resp;
+            if (recv(fd, &resp, sizeof(resp), 0) == sizeof(resp))
+            {
+                if (resp.command == STATUS_OK)
+                {
+                    // we exit immediately so window focus returns to the target application!
+                    close(fd);
+                    return EXIT_SUCCESS;
+                }
+                else
+                {
+                    fprintf(stderr, "[clipboard] :: [ERROR] :: Clip ID %u not found or paste failed.\n", header.clip_id);
+                }
+            }
+        }
+    }
     else
     {
         fprintf(stderr, "[clipboard] :: [ERROR] :: Invalid command.\n");

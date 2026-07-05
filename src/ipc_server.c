@@ -10,6 +10,7 @@
 
 #include "protocol.h"
 #include "ipc_server.h"
+#include "uinput_backend.h"
 
 int setup_secure_unix_socket(void)
 {
@@ -55,7 +56,7 @@ int setup_secure_unix_socket(void)
     return server_fd;
 }
 
-void handle_client_connection(int server_fd, ring_buffer_t *rb)
+void handle_client_connection(int server_fd, ring_buffer_t *rb, int uinput_fd)
 {
     struct sockaddr_un client_addr;
     socklen_t client_len = sizeof(client_addr);
@@ -194,6 +195,29 @@ void handle_client_connection(int server_fd, ring_buffer_t *rb)
         }
         printf("[clipd] :: [INFO] :: sent %zu bytes for ID %u to client.\n", entry->size, entry->id);
         break;
+
+    case CMD_PASTE_CLIP:
+    {
+        const clip_entry_t *entry = rb_get(rb, header.clip_id);
+        if (!entry)
+        {
+            ipc_header_t err_resp = {.uid = CLIPD_UID, .command = STATUS_ERR};
+            send(client_fd, &err_resp, sizeof(err_resp), MSG_NOSIGNAL);
+            break;
+        }
+
+        // send OK confirmation back to client immediately so the CLI tool closes cleanly
+        ipc_header_t ok_resp = {.uid = CLIPD_UID, .command = STATUS_OK};
+        send(client_fd, &ok_resp, sizeof(ok_resp), MSG_NOSIGNAL);
+
+        // give window focus 50 milliseconds to switch from terminal/popup back to target app
+        usleep(50000);
+
+        // TODO: Assert clipboard ownership here!
+        // For now, let's inject the Ctrl+V keystroke directly:
+        uinput_inject_ctrl_v(uinput_fd);
+        break;
+    }
     default:
         fprintf(stderr, "[clipd] :: [ERROR] :: Unknown command received: %u\n", header.command);
         break;
@@ -208,6 +232,6 @@ void run_ipc_server(int server_fd, ring_buffer_t *rb)
 
     while (1)
     {
-        handle_client_connection(server_fd, rb);
+        handle_client_connection(server_fd, rb, 0);
     }
 }

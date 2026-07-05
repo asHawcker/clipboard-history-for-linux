@@ -12,7 +12,8 @@ typedef enum
     STATUS_ERR = 500,
     CMD_ADD_CLIP = 1,
     CMD_LIST_CLIPS = 2,
-    CMD_GET_CLIP = 3
+    CMD_GET_CLIP = 3,
+    CMD_PASTE_CLIP = 4
 
 } clip_cmd_t;
 

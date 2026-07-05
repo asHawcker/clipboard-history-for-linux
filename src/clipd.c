@@ -7,6 +7,7 @@
 #include <X11/Xlib.h>
 
 #include "ring_buffer.h"
+#include "uinput_backend.h"
 #include "ipc_server.h"
 #include "display.h"
 
@@ -33,6 +34,7 @@ int main()
 
     // run_ipc_server(server_fd, &rb); // block forever so daemon keeps running
 
+    int uinput_fd = uinput_init();
     while (1)
     {
         int timeout = -1;
@@ -85,7 +87,7 @@ int main()
         // handle CLI client commands
         if (fds[0].revents & POLLIN)
         {
-            handle_client_connection(server_fd, &rb);
+            handle_client_connection(server_fd, &rb, uinput_fd);
         }
 
         // handle graphical selection updates
@@ -105,6 +107,7 @@ int main()
 
     rb_free(&rb);
     close(server_fd);
+    uinput_cleanup(uinput_fd);
     return 0;
 
     return 0;

@@ -7,6 +7,6 @@
 int setup_secure_unix_socket(void);
 
 // handles incoming connections
-void handle_client_connection(int server_fd, ring_buffer_t *rb);
+void handle_client_connection(int server_fd, ring_buffer_t *rb, int uinput_fd);
 
 #endif

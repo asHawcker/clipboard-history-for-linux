@@ -7,7 +7,7 @@ PROTO_HDR = src/wlr-data-control-unstable-v1-client-protocol.h
 PROTO_SRC = src/wlr-data-control-unstable-v1-protocol.c
 PROTO_OBJ = $(PROTO_SRC:.c=.o)
 
-SRCS_DAEMON = src/clipd.c src/ipc_server.c src/ring_buffer.c src/display.c src/wayland_backend.c src/x11_backend.c
+SRCS_DAEMON = src/clipd.c src/ipc_server.c src/ring_buffer.c src/display.c src/wayland_backend.c src/x11_backend.c src/uinput_backend.c
 SRCS_CLIENT = src/clipboard.c
 
 OBJS_DAEMON = $(SRCS_DAEMON:.c=.o) $(PROTO_OBJ)
