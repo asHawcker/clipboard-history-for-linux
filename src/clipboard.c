@@ -79,9 +79,32 @@ int main(int argc, char *argv[])
         header.command = CMD_LIST_CLIPS;
         if (send(fd, &header, sizeof(header), 0) == -1)
         {
-            perror("[clipboard] :: [ERROR] :: error sending data");
+            perror("[clipboard] :: [ERROR] :: Failed to send list command");
         }
-        printf("[clipboard] :: [INFO] :: sent CMD_LIST_CLIPS\n");
+
+        // loop and read incoming clip headers/payloads from clipd
+        ipc_header_t item_hdr;
+        while (recv(fd, &item_hdr, sizeof(item_hdr), MSG_WAITALL) == sizeof(item_hdr))
+        {
+            if (item_hdr.command == STATUS_OK && item_hdr.payload_len > 0)
+            {
+                char *preview = calloc(1, item_hdr.payload_len + 1);
+                if (preview && recv(fd, preview, item_hdr.payload_len, MSG_WAITALL) == (ssize_t)item_hdr.payload_len)
+                {
+                    preview[item_hdr.payload_len] = '\0';
+
+                    // Replace newlines with spaces so rofi displays each clip on a single neat line
+                    for (size_t i = 0; i < item_hdr.payload_len; i++)
+                    {
+                        if (preview[i] == '\n' || preview[i] == '\r')
+                            preview[i] = ' ';
+                    }
+
+                    printf("%u: %s\n", item_hdr.clip_id, preview);
+                }
+                free(preview);
+            }
+        }
     }
     else if (strcmp(argv[1], "get") == 0 && argc >= 3)
     {

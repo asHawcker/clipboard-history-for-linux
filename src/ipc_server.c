@@ -11,6 +11,7 @@
 #include "protocol.h"
 #include "ipc_server.h"
 #include "uinput_backend.h"
+#include "display.h"
 
 int setup_secure_unix_socket(void)
 {
@@ -108,10 +109,29 @@ void handle_client_connection(int server_fd, ring_buffer_t *rb, int uinput_fd)
     {
     case CMD_LIST_CLIPS:
         printf("[clipd] :: [INFO] :: CMD_LIST_CLIPS received. Current items: %d\n", rb->count);
+        if (rb->count == 0)
+        {
+            break;
+        }
         for (int i = 0; i < rb->count; i++)
         {
-            int idx = (rb->tail + i) % MAX_CLIPS;
-            printf("  -> Clip ID %u (Size: %zu bytes)\n", rb->entries[idx].id, rb->entries[idx].size);
+            // calculate circular index from oldest to newest
+            size_t idx = (rb->head - 1 - i + MAX_CLIPS) % MAX_CLIPS;
+            clip_entry_t *entry = &rb->entries[idx];
+
+            if (entry->data && entry->size > 0)
+            {
+                // send item header containing ID and string length
+                ipc_header_t item_hdr = {
+                    .uid = CLIPD_UID,
+                    .command = STATUS_OK,
+                    .clip_id = entry->id,
+                    .payload_len = entry->size};
+                send(client_fd, &item_hdr, sizeof(item_hdr), MSG_NOSIGNAL);
+
+                // send raw text bytes
+                send(client_fd, entry->data, entry->size, MSG_NOSIGNAL);
+            }
         }
         break;
     case CMD_ADD_CLIP:
@@ -199,12 +219,14 @@ void handle_client_connection(int server_fd, ring_buffer_t *rb, int uinput_fd)
     case CMD_PASTE_CLIP:
     {
         const clip_entry_t *entry = rb_get(rb, header.clip_id);
-        if (!entry)
+        if (!entry || !entry->data)
         {
             ipc_header_t err_resp = {.uid = CLIPD_UID, .command = STATUS_ERR};
             send(client_fd, &err_resp, sizeof(err_resp), MSG_NOSIGNAL);
             break;
         }
+
+        x11_set_clipboard(entry->data, entry->size);
 
         // send OK confirmation back to client immediately so the CLI tool closes cleanly
         ipc_header_t ok_resp = {.uid = CLIPD_UID, .command = STATUS_OK};
@@ -212,9 +234,6 @@ void handle_client_connection(int server_fd, ring_buffer_t *rb, int uinput_fd)
 
         // give window focus 50 milliseconds to switch from terminal/popup back to target app
         usleep(50000);
-
-        // TODO: Assert clipboard ownership here!
-        // For now, let's inject the Ctrl+V keystroke directly:
         uinput_inject_ctrl_v(uinput_fd);
         break;
     }

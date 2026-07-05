@@ -19,5 +19,6 @@ int init_display_listener(session_type_t session);
 int wayland_init(void);
 int x11_init(void);
 void x11_handle_event(ring_buffer_t *rb);
+void x11_set_clipboard(const char *data, size_t size);
 
 #endif
