@@ -14,3 +14,4 @@ stage/
 snap/
 
 *.deb
+deb-package/usr/*
