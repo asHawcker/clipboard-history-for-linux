@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -e
+
+# give binaries have standard executable permissions
+for binary in /usr/bin/clipd /usr/bin/clipboard /usr/bin/cb-popup; do
+    if [ -f "$binary" ]; then
+        chmod 0755 "$binary"
+    fi
+done
+echo "-------------------------------------------------------------------"``
+echo " SUCCESS: Clip History Engine installed!"
+echo "-------------------------------------------------------------------"
+echo " To start the background service for your current desktop session:"
+echo "   systemctl --user daemon-reload"
+echo "   systemctl --user enable --now clipd.service"
+echo "-------------------------------------------------------------------"
+exit 0

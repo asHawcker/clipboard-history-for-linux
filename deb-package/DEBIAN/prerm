@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -e
+
+# stop the systemd user service before removing files
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl --user stop clipd.service 2>/dev/null || true
+    systemctl --user disable clipd.service 2>/dev/null || true
+fi
+exit 0

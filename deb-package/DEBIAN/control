@@ -1,0 +1,10 @@
+Package: clip-history
+Version: 1.0.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: libc6, libx11-6, libxfixes3, libwayland-client0, rofi
+Maintainer: Anurag Sharma <anurag.iiitdm@gmail.com>
+Description: A clipboard history engine.
+ A lightweight clipboard history daemon and CLI engine written in pure C.
+ Features ring buffer memory architecture, IPC UNIX sockets, and /dev/uinput virtual keystroke injection.

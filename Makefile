@@ -36,9 +36,14 @@ OBJS_CLIENT = $(SRCS_CLIENT:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 # Standard Installation Paths
 PREFIX           ?= /usr/local
 BINDIR           ?= $(PREFIX)/bin
-SYSTEMD_USER_DIR ?= $(HOME)/.config/systemd/user
+REAL_HOME        ?= $(if $(SUDO_USER),/home/$(SUDO_USER),$(HOME))
+SYSTEMD_USER_DIR ?= $(REAL_HOME)/.config/systemd/user
 
-.PHONY: all clean install uninstall
+# Debian Packaging Settings
+DEB_PKG_DIR      = deb-package
+DEB_NAME         = clip-history_1.0.0_amd64.deb
+
+.PHONY: all clean install uninstall deb
 
 all: $(DAEMON) $(CLIENT)
 
@@ -117,5 +122,27 @@ uninstall:
 
 	@echo ":: Clean uninstallation complete."
 
+# =========================================================================
+# Debian Packaging (.deb)
+# =========================================================================
+deb: all
+	@echo ":: Assembling files for Debian packaging..."
+	mkdir -p $(DEB_PKG_DIR)/usr/bin
+	mkdir -p $(DEB_PKG_DIR)/usr/lib/systemd/user
+
+	install -m 0755 $(DAEMON) $(DEB_PKG_DIR)/usr/bin/$(DAEMON)
+	install -m 0755 $(CLIENT) $(DEB_PKG_DIR)/usr/bin/$(CLIENT)
+	if [ -f $(SCRIPT) ]; then \
+		install -m 0755 $(SCRIPT) $(DEB_PKG_DIR)/usr/bin/cb-popup; \
+	fi
+
+	if [ -f clipd.service ]; then \
+		install -m 0644 clipd.service $(DEB_PKG_DIR)/usr/lib/systemd/user/clipd.service; \
+	fi
+
+	@echo ":: Building final .deb archive..."
+	dpkg-deb --build $(DEB_PKG_DIR) $(DEB_NAME)
+	@echo ":: Successfully generated $(DEB_NAME)!"
+
 clean:
-	rm -rf $(OBJ_DIR) $(DAEMON) $(CLIENT) $(PROTO_HDR) $(PROTO_SRC)
+	rm -rf $(OBJ_DIR) $(DAEMON) $(CLIENT) $(PROTO_HDR) $(PROTO_SRC) $(DEB_NAME)

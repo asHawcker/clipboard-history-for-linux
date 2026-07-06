@@ -1,0 +1,13 @@
+[Unit]
+Description=Clip History Daemon (clipd)
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/clipd
+Restart=always
+RestartSec=2
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+
+[Install]
+WantedBy=graphical-session.target
