@@ -233,7 +233,7 @@ void handle_client_connection(int server_fd, ring_buffer_t *rb, int uinput_fd)
         send(client_fd, &ok_resp, sizeof(ok_resp), MSG_NOSIGNAL);
 
         // give window focus 50 milliseconds to switch from terminal/popup back to target app
-        usleep(50000);
+        usleep(200000);
         uinput_inject_ctrl_v(uinput_fd);
         break;
     }
