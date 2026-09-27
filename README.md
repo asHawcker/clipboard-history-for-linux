@@ -1,4 +1,4 @@
-# Clip History Engine (Linux / X11)
+# Clip History Engine (X11 and Wayland)
 
 A lightweight, clipboard history daemon (`clipd`) and command-line engine (`clipboard`) written from scratch in pure C.
 
