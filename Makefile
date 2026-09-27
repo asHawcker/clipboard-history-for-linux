@@ -34,7 +34,7 @@ OBJS_DAEMON = $(SRCS_DAEMON:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o) $(PROTO_OBJ)
 OBJS_CLIENT = $(SRCS_CLIENT:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 # Standard Installation Paths
-PREFIX           ?= /usr/local
+PREFIX           ?= /usr
 BINDIR           ?= $(PREFIX)/bin
 REAL_HOME        ?= $(if $(SUDO_USER),/home/$(SUDO_USER),$(HOME))
 SYSTEMD_USER_DIR ?= $(REAL_HOME)/.config/systemd/user
