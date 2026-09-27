@@ -3,16 +3,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <poll.h>
-#include <wayland-client.h>
-#include <X11/Xlib.h>
 
 #include "ring_buffer.h"
 #include "uinput_backend.h"
 #include "ipc_server.h"
 #include "display.h"
-
-extern Display *x11_get_display(void);
-extern struct wl_display *wayland_get_display(void);
 
 int main()
 {
@@ -21,94 +16,76 @@ int main()
     signal(SIGPIPE, SIG_IGN);
 
     int server_fd = setup_secure_unix_socket();
-
-    session_type_t session = detect_session_type();
-    int display_fd = init_display_listener(session);
-
-    struct pollfd fds[2];
-    fds[0].fd = server_fd;
-    fds[0].events = POLLIN;
-
-    fds[1].fd = display_fd;
-    fds[1].events = (display_fd != -1) ? POLLIN : 0;
-
-    // run_ipc_server(server_fd, &rb); // block forever so daemon keeps running
+    int display_fd = display_init();
 
     int uinput_fd = uinput_init();
+
     while (1)
     {
-        int timeout = -1;
+        display_pre_poll();
 
-        // flush out bound messages before sleeping
-        if (session == SESSION_WAYLAND)
+        struct pollfd fds[8];
+        int nfds = 0;
+
+        // Index 0: IPC Server Socket
+        fds[0].fd = server_fd;
+        fds[0].events = POLLIN;
+        fds[0].revents = 0;
+        int ipc_idx = 0;
+        nfds++;
+
+        // Index 1: Display Server Socket (if active)
+        int display_idx = -1;
+        if (display_fd != -1)
         {
-            struct wl_display *wl_dspy = wayland_get_display();
-            if (wl_dspy)
-            {
-                while (wl_display_prepare_read(wl_dspy) != 0)
-                {
-                    wl_display_dispatch_pending(wl_dspy);
-                }
-                wl_display_flush(wl_dspy);
-            }
+            fds[nfds].fd = display_fd;
+            fds[nfds].events = POLLIN;
+            fds[nfds].revents = 0;
+            display_idx = nfds++;
         }
 
-        if (current_active_session == SESSION_X11)
+        int extra_start_idx = nfds;
+        int extra_count = display_get_extra_pollfds(&fds[nfds], 8 - nfds);
+        nfds += extra_count;
+
+        int timeout = -1;
+        if (display_get_active_backend() == BACKEND_X11)
         {
-            Display *dpy = x11_get_display();
-            if (dpy && XPending(dpy))
+            if (x11_has_pending_events())
             {
                 timeout = 0;
             }
         }
 
-        // sleep until a wake signal is recieved from the kernel
-        int poll_ret = poll(fds, 2, timeout);
+        int poll_ret = poll(fds, nfds, timeout);
         if (poll_ret < 0)
         {
             perror("[clipd] :: [ERROR] :: poll crash");
             break;
         }
 
-        if (session == SESSION_WAYLAND)
+        // 1. Post-poll display processing
+        if (display_idx != -1)
         {
-            struct wl_display *wl_dspy = wayland_get_display();
-            if (fds[1].revents & POLLIN)
-            {
-                wl_display_read_events(wl_dspy);
-                wl_display_dispatch_pending(wl_dspy);
-            }
-            else
-            {
-                wl_display_cancel_read(wl_dspy);
-            }
+            display_post_poll(&fds[display_idx], &rb);
         }
 
-        // handle CLI client commands
-        if (fds[0].revents & POLLIN)
+        // 2. Process asynchronous pipe transfer events
+        if (extra_count > 0)
+        {
+            display_handle_extra_pollfds(&fds[extra_start_idx], extra_count, &rb);
+        }
+
+        // 3. Process CLI client IPC commands
+        if (fds[ipc_idx].revents & POLLIN)
         {
             handle_client_connection(server_fd, &rb, uinput_fd);
-        }
-
-        // handle graphical selection updates
-        if (display_fd != -1 && ((fds[1].revents & POLLIN) || (timeout == 0)))
-        {
-            // if (session == SESSION_WAYLAND)
-            // {
-            //     extern void x11_handle_event(ring_buffer_t * rb);
-
-            if (current_active_session == SESSION_X11)
-            {
-                x11_handle_event(&rb);
-            }
-            // }
         }
     }
 
     rb_free(&rb);
     close(server_fd);
+    display_cleanup();
     uinput_cleanup(uinput_fd);
-    return 0;
-
     return 0;
 }
