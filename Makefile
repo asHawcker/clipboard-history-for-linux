@@ -41,7 +41,7 @@ SYSTEMD_USER_DIR ?= $(REAL_HOME)/.config/systemd/user
 
 # Debian Packaging Settings
 DEB_PKG_DIR      = deb-package
-DEB_NAME         = clip-history_1.0.1_amd64.deb
+DEB_NAME         = clip-history_1.1.0_amd64.deb
 
 .PHONY: all clean install uninstall deb
 

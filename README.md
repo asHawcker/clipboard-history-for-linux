@@ -10,9 +10,10 @@ This engine monitors desktop clipboard selections in real time, buffers history 
 
 This software has been compiled, deployed, and strictly verified on:
 
-- **Operating System:** Ubuntu 22.04 LTS (Jammy Jellyfish) `amd64` / `x86_64`
-- **Display Server:** X11 (`SESSION_X11`)
-- **Window Managers:** GNOME Desktop
+- **Operating System:** Ubuntu 22.04/24.04 `amd64` / `x86_64`
+- **Display Server:** `X11 / XWayland` and native wlroots-based `Wayland` compositors via `wlr-data-control`.
+- **Window Managers:** GNOME Desktop, Sway, Labwc, Hyprland
+- **Runtime Behavior:** On native Wayland compositors supporting data-control, clipd captures selections directly. On GNOME/Mutter (which lacks data-control), it bridges through XWayland.
 
 ---
 
@@ -49,35 +50,47 @@ This software has been compiled, deployed, and strictly verified on:
 
 ## System Prerequisites
 
-Install the required X11 development headers, build utilities, and menu dependencies:
+Install the required X11 and wayland development headers, build utilities, and menu dependencies:
 
 ```bash
 sudo apt update
-sudo apt install build-essential gcc make libx11-dev libxfixes-dev rofi
+sudo apt install build-essential gcc make libx11-dev libxfixes-dev libwayland-dev wayland-protocols rofi
 ```
 
 ## Building & Installation
 
 You can install the engine either by building directly from source or by assembling a native Debian `(.deb)` package.
 
-### Option A: Build & Install from Source
+### Option A: Download and install a tested Release .deb package (Recommended)
+
+1. Download the latest Version from the Releases section.
+
+2. Install the downloaded package via APT
+
+   ```bash
+   sudo apt install ./clip-history_1.1.0_amd64.deb
+   ```
+
+3. Run the Post Installation setup below.
+
+### Option B: Build & Install from Source
 
 ```bash
 # 1. Compile clean objects and binaries
 make clean && make
 
-# 2. Install binaries to /usr/local/bin and service files
+# 2. Install binaries to /usr/bin and service files
 sudo make install
 ```
 
-### Option B: Build & Install via Debian Package `(.deb)`
+### Option C: Build & Install via Debian Package `(.deb)`
 
 ```bash
 # 1. Build the native Debian package (.deb)
 make clean && make deb
 
 # 2. Install the generated package via APT
-sudo apt install ./clip-history_1.0.0_amd64.deb
+sudo apt install ./clip-history_2.0.0_amd64.deb
 ```
 
 ## Post-Installation Setup
@@ -116,7 +129,7 @@ sudo apt install ./clip-history_1.0.0_amd64.deb
 
    - Command Path (Debian install): /usr/bin/cb-popup
 
-   ### Via GNOME Terminal (gsettings):
+   ### For GNOME via GNOME Terminal (gsettings):
 
    ```bash
    KEY_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/cliphistory/"
@@ -126,23 +139,19 @@ sudo apt install ./clip-history_1.0.0_amd64.deb
    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$KEY_PATH binding '<Super>v'
    ```
 
-## Command-Line Interface (CLI)
+   ### For Sway (~/.config/sway/config)
 
-You can interact with the background daemon directly from the terminal using the clipboard binary :
+   ```bash
+   # Bind Super + V to trigger the clipboard history popup
+   bindsym $mod+v exec cb-popup
+   ```
 
-```bash
-# Add manual text payload to history
-clipboard add "Custom string entry"
+   ### For Hyprland (~/.config/hypr/hyprland.conf)
 
-# List all buffered clips with their numerical IDs
-clipboard list
-
-# Get raw payload output for a specific clip ID
-clipboard get 4
-
-# Trigger immediate X11 selection ownership and inject synthetic paste for ID
-clipboard paste 4
-```
+   ```bash
+   # Bind Super + V to trigger the clipboard history popup
+   bind = SUPER, v, exec, cb-popup
+   ```
 
 ## Uninstallation
 
@@ -161,6 +170,24 @@ systemctl --user disable clipd.service 2>/dev/null || true
 
 # Remove package
 sudo apt remove clip-history
+```
+
+## Command-Line Interface (CLI)
+
+You can interact with the background daemon directly from the terminal using the clipboard binary :
+
+```bash
+# Add manual text payload to history
+clipboard add "Custom string entry"
+
+# List all buffered clips with their numerical IDs
+clipboard list
+
+# Get raw payload output for a specific clip ID
+clipboard get 4
+
+# Trigger immediate X11 selection ownership and inject synthetic paste for ID
+clipboard paste 4
 ```
 
 ## Project Structure
