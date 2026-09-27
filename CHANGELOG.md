@@ -14,3 +14,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Compositor Delay:** Increased the `usleep` window focus delay in `ipc_server.c` from 50ms to 200ms to allow time for window focus change before pasting.
+- **Pop-up Window:** Changed Rofi popup to a normal window to better support focus
