@@ -177,6 +177,18 @@ void x11_handle_event(ring_buffer_t *rb)
     }
 }
 
+int x11_get_fd(void)
+{     
+    if (dpy)
+        return ConnectionNumber(dpy);
+    return -1;
+}
+
+int x11_has_pending_events(void)
+{
+    return (dpy && XPending(dpy));
+}
+
 void x11_cleanup(void)
 {
     if (dpy)

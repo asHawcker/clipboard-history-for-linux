@@ -28,6 +28,7 @@ int connect_to_daemon()
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
+    addr.sun_path[sizeof(addr.sun_path) - 1] = '\0';
 
     if (connect(client_fd, (struct sockaddr *)&addr, sizeof(addr)) == -1)
     {
