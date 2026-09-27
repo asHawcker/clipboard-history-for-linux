@@ -17,7 +17,7 @@ fi
 
 sleep 0.05
 
-SELECTED=$(echo "$CLIPS" | rofi -dmenu -i -p "Clipboard History" -sync -no-lazy-grab -steal-focus)
+SELECTED=$(echo "$CLIPS" | rofi -dmenu -i -p "Clipboard History" -sync -normal-window)
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ] || [ "$EMPTY_STATE" = true ]; then
