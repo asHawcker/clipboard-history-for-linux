@@ -10,6 +10,7 @@ static Display *dpy = NULL;
 static Window dummy_win = 0;
 
 static Atom clipboard_atom = 0;
+static Atom primary_atom = 0;
 static Atom utf8_atom = 0;
 static Atom clipd_prop_atom = 0;
 static Atom targets_atom = 0;
@@ -38,6 +39,7 @@ int x11_init(void)
 
     // CLIPBOARD string atom
     clipboard_atom = XInternAtom(dpy, "CLIPBOARD", False);
+    primary_atom = XInternAtom(dpy, "PRIMARY", False);
     utf8_atom = XInternAtom(dpy, "UTF8_STRING", False);
     clipd_prop_atom = XInternAtom(dpy, "CLIPD_SEL_PROP", False);
     targets_atom = XInternAtom(dpy, "TARGETS", False);
@@ -69,8 +71,18 @@ void x11_set_clipboard(const char *data, size_t size)
     memcpy(active_paste_data, data, size);
     active_paste_size = size;
 
+    // force a property change to extract the true current time of the XServer
+    XSelectInput(dpy, dummy_win, PropertyChangeMask);
+    XChangeProperty(dpy, dummy_win, clipd_prop_atom, XA_STRING, 8, PropModeAppend, NULL, 0);
+    
+    // blocks to catch the server's reply
+    XEvent ev;
+    XWindowEvent(dpy, dummy_win, PropertyChangeMask, &ev);
+    Time server_time = ev.xproperty.time;
+
     // claim ownership of the X11 CLIPBOARD selection
-    XSetSelectionOwner(dpy, clipboard_atom, dummy_win, CurrentTime);
+    XSetSelectionOwner(dpy, clipboard_atom, dummy_win, server_time);
+    XSetSelectionOwner(dpy, primary_atom, dummy_win, server_time);
     XFlush(dpy);
     printf("[display] :: [INFO] :: took X11 clipboard ownership for %zu bytes.\n", size);
 }
@@ -141,7 +153,7 @@ void x11_handle_event(ring_buffer_t *rb)
                 .property = None,
                 .time = req->time};
 
-            if (req->selection == clipboard_atom && active_paste_data)
+            if ((req->selection == clipboard_atom || req->selection == primary_atom) && active_paste_data)
             {
                 if (req->target == utf8_atom || req->target == XA_STRING)
                 {
