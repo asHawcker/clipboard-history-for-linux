@@ -36,6 +36,7 @@ int setup_secure_unix_socket(void)
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
+    addr.sun_path[sizeof(addr.sun_path) - 1] = '\0';
 
     // apply strict umask 0077 so the socket file is created with 0600 permissions
     mode_t old_mask = umask(0077);
@@ -226,13 +227,14 @@ void handle_client_connection(int server_fd, ring_buffer_t *rb, int uinput_fd)
             break;
         }
 
-        x11_set_clipboard(entry->data, entry->size);
+        // Platform-neutral clipboard ownership setter
+        display_set_clipboard(entry->data, entry->size);
 
         // send OK confirmation back to client immediately so the CLI tool closes cleanly
         ipc_header_t ok_resp = {.uid = CLIPD_UID, .command = STATUS_OK};
         send(client_fd, &ok_resp, sizeof(ok_resp), MSG_NOSIGNAL);
 
-        // give window focus 50 milliseconds to switch from terminal/popup back to target app
+        // give window focus few milliseconds to switch from terminal/popup back to target app
         usleep(200000);
         uinput_inject_ctrl_v(uinput_fd);
         break;
